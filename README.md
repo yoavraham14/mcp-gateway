@@ -1,9 +1,9 @@
 # mcp-gateway
 
 Wraps local **stdio** MCP servers with [`supergateway`](https://github.com/supercorp-ai/supergateway)
-so they are reachable over **HTTP/SSE** — from a cloud scheduled task, a Custom
-Connector, or any remote MCP client — instead of only from a desktop app on this
-machine.
+so they are reachable over **HTTP** (Streamable HTTP MCP) — from a cloud
+scheduled task, a Custom Connector, or any remote MCP client — instead of only
+from a desktop app on this machine.
 
 ```
 mcp-gateway/
@@ -33,15 +33,19 @@ docker compose up --build
 
 | Endpoint | URL |
 | --- | --- |
-| SSE stream | `http://localhost:8001/sse` |
-| Message post-back | `http://localhost:8001/message` |
+| MCP (Streamable HTTP) | `http://localhost:8001/mcp` |
 | Health check | `http://localhost:8001/healthz` |
 
 Quick check:
 
 ```bash
 curl -i http://localhost:8001/healthz
-curl -N http://localhost:8001/sse      # should stream an "endpoint" event, then stay open
+
+# MCP initialize handshake (Streamable HTTP): expect HTTP 200 + a JSON-RPC result
+curl -sN -X POST http://localhost:8001/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
 ```
 
 Stop with `Ctrl+C`, or `docker compose down`.
@@ -67,6 +71,9 @@ Stop with `Ctrl+C`, or `docker compose down`.
      (paths are relative to `/app` inside the image)
    - `--port` and the published `ports:` mapping → the next free port, e.g. `8002`
    - `environment:` → whatever env vars that server requires
+
+   Leave `--outputTransport streamableHttp` as-is; the server's MCP endpoint is
+   then `http://localhost:<port>/mcp`.
 
 4. **Add its env vars** to `.env.example` and to your local `.env`.
 
@@ -97,8 +104,8 @@ server, so no compose file is used on Render.
 3. **Runtime: Docker.** Render auto-detects the `Dockerfile`.
 4. **Environment variables:** add `RR_API_KEY` with the real value. (Do **not**
    commit `.env`.)
-5. Deploy. Render gives a public URL like `https://<name>.onrender.com`; the SSE
-   endpoint is `https://<name>.onrender.com/sse` and health is
+5. Deploy. Render gives a public URL like `https://<name>.onrender.com`; the MCP
+   endpoint is `https://<name>.onrender.com/mcp` and health is
    `https://<name>.onrender.com/healthz` (set that as the Render health check
    path).
 
@@ -107,14 +114,15 @@ its start command (Render → Settings → **Docker Command**) to that server's
 supergateway invocation, for example:
 
 ```
-supergateway --stdio "node servers/my-thing/dist/index.js" --port $PORT --healthEndpoint /healthz --cors
+supergateway --stdio "node servers/my-thing/dist/index.js" --outputTransport streamableHttp --port $PORT --healthEndpoint /healthz --cors
 ```
 
 ---
 
 ## Register with Claude as a Custom Connector
 
-Once deployed, add the public SSE URL (`https://<name>.onrender.com/sse`) as a
-Custom Connector in Claude. The wrapped tools — e.g.
+Once deployed, add the public MCP URL (`https://<name>.onrender.com/mcp`) as a
+Custom Connector in Claude, with **authentication set to "None"** (the gateway
+does not require sign-in). The wrapped tools — e.g.
 `search_remote_rocketship_jobs` — then work from cloud scheduled tasks even when
 this machine is off.

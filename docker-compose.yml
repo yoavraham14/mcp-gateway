@@ -13,9 +13,13 @@
 services:
   remote-rocketship:
     build: .
+    # streamableHttp -> single MCP endpoint at http://localhost:8001/mcp
+    # (what Claude custom connectors expect). Swap for `--outputTransport sse`
+    # if a client needs the older GET /sse + POST /message pair instead.
     command: >
       supergateway
       --stdio "node servers/remote-rocketship/dist/index.js"
+      --outputTransport streamableHttp
       --port 8001
       --healthEndpoint /healthz
       --cors
@@ -31,6 +35,7 @@ services:
   #   command: >
   #     supergateway
   #     --stdio "node servers/another-server/dist/index.js"
+  #     --outputTransport streamableHttp
   #     --port 8002
   #     --healthEndpoint /healthz
   #     --cors
