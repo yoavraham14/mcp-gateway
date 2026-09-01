@@ -1,0 +1,41 @@
+# One service block per MCP server. Every service reuses the single image built
+# from ./Dockerfile (which installs and builds every servers/*), and overrides
+# `command` to launch supergateway wrapping that server's stdio entry point.
+#
+# To add another MCP server:
+#   1. Put its code in servers/<name>/
+#   2. Copy the remote-rocketship block below
+#   3. Change the service name, the --stdio launch command, the --port, the
+#      published port, and the environment variables it needs
+#   4. docker compose up --build
+# See README.md for the full walkthrough.
+
+services:
+  remote-rocketship:
+    build: .
+    command: >
+      supergateway
+      --stdio "node servers/remote-rocketship/dist/index.js"
+      --port 8001
+      --healthEndpoint /healthz
+      --cors
+    ports:
+      - "8001:8001"
+    environment:
+      - RR_API_KEY=${RR_API_KEY:?set RR_API_KEY in mcp-gateway/.env}
+    restart: unless-stopped
+
+  # --- template: copy for each additional MCP server ---
+  # another-server:
+  #   build: .
+  #   command: >
+  #     supergateway
+  #     --stdio "node servers/another-server/dist/index.js"
+  #     --port 8002
+  #     --healthEndpoint /healthz
+  #     --cors
+  #   ports:
+  #     - "8002:8002"
+  #   environment:
+  #     - SOME_API_KEY=${SOME_API_KEY:?set SOME_API_KEY in mcp-gateway/.env}
+  #   restart: unless-stopped
